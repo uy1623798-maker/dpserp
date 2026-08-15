@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.local
+server/data/*.db*
+server/uploads/*
+!server/uploads/.gitkeep
+.pnpm-store/

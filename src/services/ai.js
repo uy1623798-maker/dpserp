@@ -1,0 +1,1 @@
+export async function askSchoolAssistant({message, user, context}) { const res=await fetch(`${import.meta.env.VITE_API_BASE_URL||'/api'}/ai/ask`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({message,context,role:user?.role})}); if(!res.ok) throw new Error('Assistant is unavailable'); return res.json(); }
