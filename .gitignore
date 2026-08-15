@@ -6,3 +6,4 @@ server/data/*.db*
 server/uploads/*
 !server/uploads/.gitkeep
 .pnpm-store/
+.sheet-work/
