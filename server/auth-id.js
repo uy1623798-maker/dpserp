@@ -1,0 +1,4 @@
+import{randomBytes,scryptSync,timingSafeEqual}from'node:crypto';
+const hash=p=>{const s=randomBytes(16).toString('hex');return s+':'+scryptSync(p,s,64).toString('hex')};
+export const verifyDob=(dob,h)=>{const[s,v]=h.split(':');return timingSafeEqual(Buffer.from(v,'hex'),scryptSync(dob,s,64))};
+export function configureIdLogin(db){try{db.exec('ALTER TABLE users ADD COLUMN login_id TEXT')}catch{}try{db.exec('CREATE INDEX IF NOT EXISTS idx_users_role_login ON users(role,login_id)')}catch{}const accounts=[['STUDENT','DPS202601','2010-04-15'],['PARENT','DPS202601','2010-04-15'],['TEACHER','DPST001','1985-01-15'],['ACCOUNTANT','DPSA001','1988-06-20'],['ADMIN_STAFF','DPSS001','1990-02-10'],['ADMINISTRATOR','DPSADM001','1982-09-05'],['SUPER_ADMIN','DPSSA001','1980-01-01']],update=db.prepare('UPDATE users SET login_id=?,password_hash=?,email=? WHERE role=?');for(const[role,id,dob]of accounts)update.run(id,hash(dob),`${role.toLowerCase()}:${id.toLowerCase()}@dps.demo`,role)}
