@@ -34,7 +34,10 @@ function send(res, status, value) {
 
 function pathFor(req) {
   const value = req.query?.path;
-  return '/' + (Array.isArray(value) ? value.join('/') : value || '');
+  if (value) return '/' + (Array.isArray(value) ? value.join('/') : value);
+  const pathname = new URL(req.url || '/', 'https://dps.local').pathname;
+  const apiPath = pathname.replace(/^\/api(?=\/|$)/, '');
+  return apiPath || '/';
 }
 
 function signedInUser(req) {
