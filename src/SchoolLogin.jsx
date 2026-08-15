@@ -27,11 +27,11 @@ export default function SchoolLogin(){
       <form className="portalform" onSubmit={submit}>
         <div className="selectedportal"><SelectedIcon/><span><small>Signing in as</small><b>{isAdmin?'Administration':selected.name}</b></span></div>
         {isAdmin&&<label>Administration role<select value={role} onChange={e=>change(e.target.value)}>{Object.entries(adminRoles).map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label>}
-        <label>{role==='STUDENT'?'Admission number':role==='TEACHER'?'Teacher ID':'School staff ID'}<input value={loginId} onChange={e=>setLoginId(e.target.value.toUpperCase())} required autoComplete="username"/></label>
-        <label>Date of birth<input value={dob} onChange={e=>setDob(e.target.value)} required type="date" autoComplete="bday"/></label>
+        <label>{role==='STUDENT'?'Username (Admission Number)':role==='TEACHER'?'Username (Teacher ID)':'Username (School Staff ID)'}<input value={loginId} onChange={e=>setLoginId(e.target.value.toUpperCase())} required autoComplete="username"/></label>
+        <label>Password (Date of Birth)<input value={dob} onChange={e=>setDob(e.target.value)} required type="date" autoComplete="bday"/></label>
         {error&&<p className="formerror" role="alert">{error}</p>}
         <button disabled={busy} className="btn full">{busy?'Verifying…':`Continue as ${isAdmin?'Administration':selected.name}`}</button>
-        <p className="demo">Use your school-issued ID and registered date of birth.</p>
+        <p className="demo">Student login: Admission Number as username and registered DOB as password.</p>
       </form>
     </section>
   </main>
