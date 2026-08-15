@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { teacherDirectory } from './teacher-directory.js';
 
 const accounts = [
   ['STUDENT', 'DPS202601', '2010-04-15', 'Student'],
@@ -12,13 +13,23 @@ const accounts = [
 
 const state = globalThis.__dpsErpState || (globalThis.__dpsErpState = {
   sessions: new Map(),
-  nextId: 5,
+  nextId: 5 + teacherDirectory.length,
   nextAttachmentId: 1,
   records: [
     { id: 1, module: 'Students', title: 'Aarav Sharma', subtitle: 'Class X-A · DPS202601', status: 'Active', amount: 0 },
     { id: 2, module: 'Homework', title: 'Algebra practice set', subtitle: 'Class X-A · Mathematics', status: 'Pending', amount: 0 },
     { id: 3, module: 'Attendance', title: 'August attendance', subtitle: '22 present · 1 absent', status: '94%', amount: 0 },
     { id: 4, module: 'Fees', title: 'Quarter II fee', subtitle: 'Tuition and activity fee', status: 'Paid', amount: 18500 },
+    ...teacherDirectory.map((teacher, index) => ({
+      id: index + 5,
+      module: 'Staff',
+      title: teacher.name,
+      subtitle: [teacher.designation, teacher.qualification, teacher.professionalQualification, teacher.classesTaught ? `Classes ${teacher.classesTaught}` : '', `ID ${teacher.teacherId}`].filter(Boolean).join(' · '),
+      status: 'Active',
+      amount: 0,
+      owner_role: 'ADMIN_STAFF',
+      directory: teacher,
+    })),
   ],
   attachments: new Map(),
   imports: [],
