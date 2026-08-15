@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const accounts = [
   ['STUDENT', 'DPS202601', '2010-04-15', 'Student'],
@@ -42,9 +42,24 @@ function pathFor(req) {
 
 function signedInUser(req) {
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const session = state.sessions.get(token);
-  if (!session || session.expiresAt < Date.now()) return null;
-  return session.user;
+  const [encoded, suppliedSignature = ''] = token.split('.');
+  if (!encoded || !suppliedSignature) return null;
+  const expectedSignature = createHmac('sha256', process.env.DPS_TOKEN_SECRET || 'dps-vercel-demo-token').update(encoded).digest('base64url');
+  const supplied = Buffer.from(suppliedSignature);
+  const expected = Buffer.from(expectedSignature);
+  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString());
+    return payload.expiresAt > Date.now() ? payload.user : null;
+  } catch {
+    return null;
+  }
+}
+
+function issueToken(user) {
+  const encoded = Buffer.from(JSON.stringify({ user, expiresAt: Date.now() + 86_400_000 })).toString('base64url');
+  const signature = createHmac('sha256', process.env.DPS_TOKEN_SECRET || 'dps-vercel-demo-token').update(encoded).digest('base64url');
+  return `${encoded}.${signature}`;
 }
 
 export default async function handler(req, res) {
@@ -61,9 +76,8 @@ export default async function handler(req, res) {
       if (!account || String(req.body?.password || '') !== account[2]) {
         return send(res, 401, { error: 'Invalid admission number/school ID or date of birth' });
       }
-      const token = randomBytes(32).toString('hex');
       const user = { name: account[3], email: `${role.toLowerCase()}:${account[1].toLowerCase()}@dps.demo`, role, loginId: account[1] };
-      state.sessions.set(token, { user, expiresAt: Date.now() + 86_400_000 });
+      const token = issueToken(user);
       return send(res, 200, { token, user });
     }
 
@@ -104,7 +118,8 @@ export default async function handler(req, res) {
         attachment = { id: state.nextAttachmentId++, file_name: data.file.name || 'homework.pdf', size_bytes: bytes.length };
         state.attachments.set(attachment.id, { ...attachment, data: bytes });
       }
-      const record = { id: state.nextId++, module: 'Homework', title: data.title, subtitle: `${data.className} · ${data.subject}${data.instructions ? ` · ${data.instructions}` : ''}`, status: 'Published', due_date: data.due, owner_role: 'STUDENT', ...(attachment ? { attachment_id: attachment.id, file_name: attachment.file_name, size_bytes: attachment.size_bytes } : {}) };
+      const moduleName = data.module === 'Assignments' ? 'Assignments' : 'Homework';
+      const record = { id: state.nextId++, module: moduleName, title: data.title, subtitle: `${data.className} · ${data.subject}${data.instructions ? ` · ${data.instructions}` : ''}`, status: 'Published', due_date: data.due, owner_role: 'STUDENT', ...(attachment ? { attachment_id: attachment.id, file_name: attachment.file_name, size_bytes: attachment.size_bytes } : {}) };
       state.records.push(record);
       return send(res, 201, { recordId: record.id, attachment });
     }
