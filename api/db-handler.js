@@ -27,6 +27,7 @@ export default async function handler(req,res){
     if(path==='/records'&&req.method==='GET'){
       const moduleName=String(req.query?.module||'Homework');
       if(moduleName==='Exams & Results'&&user.role==='STUDENT')return send(res,403,{error:'Use the private student results section'});
+      if(moduleName==='Students'&&!['TEACHER','ACCOUNTANT','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Student directory access is restricted'});
       const rows=await sql`SELECT r.id,r.module,r.title,r.subtitle,r.status,r.amount,r.due_date,r.owner_role,a.id attachment_id,a.file_name,a.size_bytes FROM records r LEFT JOIN attachments a ON a.record_id=r.id WHERE r.module=${moduleName} ORDER BY r.created_at DESC`;
       return send(res,200,{records:rows});
     }
@@ -50,6 +51,27 @@ export default async function handler(req,res){
       if(Number(matched[0]?.count)!==clean.length)return send(res,400,{error:'One or more student admission numbers are invalid'});
       const rows=await sql`WITH input AS (SELECT * FROM jsonb_to_recordset(${JSON.stringify(clean)}::jsonb) AS x(login_id text,marks numeric)) INSERT INTO exam_results(student_id,class_name,exam_name,subject,marks,max_marks,status,teacher_id) SELECT u.id,${className},${examName},${subject},i.marks,${maxMarks},${status},${user.id} FROM input i JOIN users u ON u.role='STUDENT' AND u.login_id=i.login_id ON CONFLICT(student_id,class_name,exam_name,subject) DO UPDATE SET marks=EXCLUDED.marks,max_marks=EXCLUDED.max_marks,status=EXCLUDED.status,teacher_id=EXCLUDED.teacher_id,updated_at=now() RETURNING id`;
       return send(res,200,{saved:rows.length,status});
+    }
+    if(path==='/fees'&&req.method==='GET'){
+      if(user.role==='STUDENT'){
+        const rows=await sql`SELECT id,class_name,fee_month,amount_due,amount_paid,(amount_due-amount_paid) balance,paid_on,updated_at FROM student_fees WHERE student_id=${user.id} ORDER BY fee_month`;
+        return send(res,200,{fees:rows});
+      }
+      if(!['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Fee records are restricted'});
+      const className=String(req.query?.className||''),month=String(req.query?.month||'');
+      const rows=await sql`SELECT f.id,u.login_id admission_id,u.name student_name,f.class_name,f.fee_month,f.amount_due,f.amount_paid,(f.amount_due-f.amount_paid) balance,f.paid_on,f.updated_at FROM student_fees f JOIN users u ON u.id=f.student_id WHERE (${className}='' OR f.class_name=${className}) AND (${month}='' OR f.fee_month=(${month}||'-01')::date) ORDER BY u.name`;
+      return send(res,200,{fees:rows});
+    }
+    if(path==='/fees'&&req.method==='POST'){
+      if(!['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only accountants can save monthly fees'});
+      const d=req.body||{},className=String(d.className||'').trim(),month=String(d.month||''),entries=Array.isArray(d.entries)?d.entries:[];
+      if(!className||!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||!entries.length||entries.length>200)return send(res,400,{error:'Class, month and at least one student fee are required'});
+      const clean=entries.map(entry=>({login_id:String(entry.admissionId||'').trim(),amount_due:Number(entry.amountDue),amount_paid:Number(entry.amountPaid||0)}));
+      if(new Set(clean.map(entry=>entry.login_id)).size!==clean.length||clean.some(entry=>!entry.login_id||!Number.isFinite(entry.amount_due)||entry.amount_due<=0||!Number.isFinite(entry.amount_paid)||entry.amount_paid<0||entry.amount_paid>entry.amount_due))return send(res,400,{error:'Each fee must have a valid student, positive due amount and paid amount within the due total'});
+      const ids=clean.map(entry=>entry.login_id),matched=await sql`SELECT count(*)::int count FROM users WHERE role='STUDENT' AND active=true AND login_id=ANY(${ids})`;
+      if(Number(matched[0]?.count)!==clean.length)return send(res,400,{error:'One or more student admission numbers are invalid'});
+      const rows=await sql`WITH input AS (SELECT * FROM jsonb_to_recordset(${JSON.stringify(clean)}::jsonb) AS x(login_id text,amount_due numeric,amount_paid numeric)) INSERT INTO student_fees(student_id,class_name,fee_month,amount_due,amount_paid,accountant_id,paid_on) SELECT u.id,${className},(${month}||'-01')::date,i.amount_due,i.amount_paid,${user.id},CASE WHEN i.amount_paid>0 THEN current_date ELSE NULL END FROM input i JOIN users u ON u.role='STUDENT' AND u.active=true AND u.login_id=i.login_id ON CONFLICT(student_id,fee_month) DO UPDATE SET class_name=EXCLUDED.class_name,amount_due=EXCLUDED.amount_due,amount_paid=EXCLUDED.amount_paid,accountant_id=EXCLUDED.accountant_id,paid_on=EXCLUDED.paid_on,updated_at=now() RETURNING id`;
+      return send(res,200,{saved:rows.length,month});
     }
     if(path==='/records'&&req.method==='POST'){
       if(!allowedWriters.includes(user.role))return send(res,403,{error:'Not permitted'});const d=req.body||{},title=String(d.title||'').trim();if(!title)return send(res,400,{error:'Title is required'});
