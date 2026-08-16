@@ -11,8 +11,8 @@ const roles=[
   {key:'ADMINISTRATOR',name:'Administration',hint:'Staff ID',icon:ShieldCheck},
 ];
 const adminRoles={ADMIN_STAFF:'Administrative Staff',ADMINISTRATOR:'Administrator',SUPER_ADMIN:'Super Administrator'};
-const ids={STUDENT:'DPS202601',TEACHER:'DPST001',ACCOUNTANT:'DPSA001',ADMIN_STAFF:'DPSS001',ADMINISTRATOR:'DPSADM001',SUPER_ADMIN:'DPSSA001'};
-const dobs={STUDENT:'2010-04-15',TEACHER:'1985-01-15',ACCOUNTANT:'1988-06-20',ADMIN_STAFF:'1990-02-10',ADMINISTRATOR:'1982-09-05',SUPER_ADMIN:'1980-01-01'};
+const ids={STUDENT:'DPS202601',TEACHER:'',ACCOUNTANT:'DPSA001',ADMIN_STAFF:'DPSS001',ADMINISTRATOR:'DPSADM001',SUPER_ADMIN:'DPSSA001'};
+const dobs={STUDENT:'2010-04-15',TEACHER:'',ACCOUNTANT:'1988-06-20',ADMIN_STAFF:'1990-02-10',ADMINISTRATOR:'1982-09-05',SUPER_ADMIN:'1980-01-01'};
 
 export default function SchoolLogin(){
   const[role,setRole]=useState('STUDENT'),[loginId,setLoginId]=useState(ids.STUDENT),[dob,setDob]=useState(dobs.STUDENT),[error,setError]=useState(''),[busy,setBusy]=useState(false),nav=useNavigate();
@@ -31,7 +31,7 @@ export default function SchoolLogin(){
         <label>Password (Date of Birth)<input value={dob} onChange={e=>setDob(e.target.value)} required type="date" autoComplete="bday"/></label>
         {error&&<p className="formerror" role="alert">{error}</p>}
         <button disabled={busy} className="btn full">{busy?'Verifying…':`Continue as ${isAdmin?'Administration':selected.name}`}</button>
-        <p className="demo">Student login: Admission Number as username and registered DOB as password.</p>
+        <p className="demo">{role==='TEACHER'?'Teacher login: Enter your assigned Teacher ID and registered DOB.':'Student login: Admission Number as username and registered DOB as password.'}</p>
       </form>
     </section>
   </main>
