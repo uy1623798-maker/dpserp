@@ -61,8 +61,9 @@ export default async function handler(req,res){
     if(path==='/homework'&&req.method==='POST'){
       if(!['TEACHER','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only teachers can publish homework'});const d=req.body||{};if(!d.title||!d.className||!d.subject||!d.due)return send(res,400,{error:'Class, subject, title and deadline are required'});
       const moduleName=d.module==='Assignments'?'Assignments':'Homework',subtitle=`${d.className} · ${d.subject}${d.instructions?` · ${d.instructions}`:''}`;
+      let bytes=null,fileName=null;if(d.file){bytes=Buffer.from(d.file.data||'','base64');fileName=String(d.file.name||'resource.pdf').replace(/[^a-zA-Z0-9._ -]/g,'_');if(bytes.subarray(0,5).toString()!=='%PDF-'||bytes.length>3*1024*1024)return send(res,400,{error:'Please upload a valid PDF file of 3 MB or smaller'})}
       const records=await sql`INSERT INTO records(module,title,subtitle,status,due_date,owner_role) VALUES(${moduleName},${String(d.title)},${subtitle},'Published',${d.due},'STUDENT') RETURNING id`;
-      let attachment=null;if(d.file){const bytes=Buffer.from(d.file.data||'','base64');if(d.file.type!=='application/pdf'||bytes.subarray(0,4).toString()!=='%PDF'||bytes.length>3500000)return send(res,400,{error:'Only valid PDF files up to 3.5 MB are allowed'});const rows=await sql`INSERT INTO attachments(record_id,file_name,mime_type,size_bytes,content) VALUES(${records[0].id},${String(d.file.name||'homework.pdf').replace(/[^a-zA-Z0-9._ -]/g,'_')},'application/pdf',${bytes.length},${bytes}) RETURNING id,file_name,size_bytes`;attachment=rows[0]}
+      let attachment=null;if(bytes){const rows=await sql`INSERT INTO attachments(record_id,file_name,mime_type,size_bytes,content) VALUES(${records[0].id},${fileName},'application/pdf',${bytes.length},${bytes}) RETURNING id,file_name,size_bytes`;attachment=rows[0]}
       return send(res,201,{recordId:records[0].id,attachment});
     }
     const fileMatch=path.match(/^\/files\/(\d+)$/);
