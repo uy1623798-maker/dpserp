@@ -26,8 +26,30 @@ export default async function handler(req,res){
     const user=await currentUser(sql,req);if(!user)return send(res,401,{error:'Please sign in again'});
     if(path==='/records'&&req.method==='GET'){
       const moduleName=String(req.query?.module||'Homework');
+      if(moduleName==='Exams & Results'&&user.role==='STUDENT')return send(res,403,{error:'Use the private student results section'});
       const rows=await sql`SELECT r.id,r.module,r.title,r.subtitle,r.status,r.amount,r.due_date,r.owner_role,a.id attachment_id,a.file_name,a.size_bytes FROM records r LEFT JOIN attachments a ON a.record_id=r.id WHERE r.module=${moduleName} ORDER BY r.created_at DESC`;
       return send(res,200,{records:rows});
+    }
+    if(path==='/exam-results'&&req.method==='GET'){
+      if(user.role==='STUDENT'){
+        const rows=await sql`SELECT e.id,e.class_name,e.exam_name,e.subject,e.marks,e.max_marks,e.status,e.updated_at,t.name teacher_name FROM exam_results e LEFT JOIN users t ON t.id=e.teacher_id WHERE e.student_id=${user.id} AND e.status='Published' ORDER BY e.updated_at DESC`;
+        return send(res,200,{results:rows});
+      }
+      if(!['TEACHER','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Not permitted'});
+      const className=String(req.query?.className||''),examName=String(req.query?.examName||''),subject=String(req.query?.subject||'');
+      const rows=await sql`SELECT e.id,u.login_id admission_id,u.name student_name,e.class_name,e.exam_name,e.subject,e.marks,e.max_marks,e.status,e.updated_at FROM exam_results e JOIN users u ON u.id=e.student_id WHERE (${className}='' OR e.class_name=${className}) AND (${examName}='' OR e.exam_name=${examName}) AND (${subject}='' OR e.subject=${subject}) ORDER BY u.name`;
+      return send(res,200,{results:rows});
+    }
+    if(path==='/exam-results'&&req.method==='POST'){
+      if(!['TEACHER','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only teachers can upload marks'});
+      const d=req.body||{},className=String(d.className||'').trim(),examName=String(d.examName||'').trim(),subject=String(d.subject||'').trim(),maxMarks=Number(d.maxMarks),status=d.status==='Published'?'Published':'Draft',results=Array.isArray(d.results)?d.results:[];
+      if(!className||!examName||!subject||!Number.isFinite(maxMarks)||maxMarks<=0||!results.length||results.length>200)return send(res,400,{error:'Class, exam, subject, maximum marks and student marks are required'});
+      const clean=results.map(r=>({login_id:String(r.admissionId||'').trim(),marks:Number(r.marks)}));
+      if(clean.some(r=>!r.login_id||!Number.isFinite(r.marks)||r.marks<0||r.marks>maxMarks))return send(res,400,{error:'Every mark must be between zero and the maximum marks'});
+      const ids=clean.map(r=>r.login_id),matched=await sql`SELECT count(*)::int count FROM users WHERE role='STUDENT' AND active=true AND login_id=ANY(${ids})`;
+      if(Number(matched[0]?.count)!==clean.length)return send(res,400,{error:'One or more student admission numbers are invalid'});
+      const rows=await sql`WITH input AS (SELECT * FROM jsonb_to_recordset(${JSON.stringify(clean)}::jsonb) AS x(login_id text,marks numeric)) INSERT INTO exam_results(student_id,class_name,exam_name,subject,marks,max_marks,status,teacher_id) SELECT u.id,${className},${examName},${subject},i.marks,${maxMarks},${status},${user.id} FROM input i JOIN users u ON u.role='STUDENT' AND u.login_id=i.login_id ON CONFLICT(student_id,class_name,exam_name,subject) DO UPDATE SET marks=EXCLUDED.marks,max_marks=EXCLUDED.max_marks,status=EXCLUDED.status,teacher_id=EXCLUDED.teacher_id,updated_at=now() RETURNING id`;
+      return send(res,200,{saved:rows.length,status});
     }
     if(path==='/records'&&req.method==='POST'){
       if(!allowedWriters.includes(user.role))return send(res,403,{error:'Not permitted'});const d=req.body||{},title=String(d.title||'').trim();if(!title)return send(res,400,{error:'Title is required'});
