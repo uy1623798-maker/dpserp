@@ -8,6 +8,7 @@ function send(res,status,value){res.status(status).setHeader('Content-Type','app
 function routePath(req){const pathname=new URL(req.url||'/','https://dps.local').pathname;return pathname.replace(/^\/api(?=\/|$)/,'')||'/'}
 function tokenHash(token){return createHash('sha256').update(token).digest('hex')}
 function db(){if(!process.env.DATABASE_URL)throw new Error('Database connection is not configured');return neon(process.env.DATABASE_URL)}
+function schoolDate(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
 async function currentUser(sql,req){const token=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');if(!token)return null;const rows=await sql`SELECT u.id,u.login_id,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=${tokenHash(token)} AND s.expires_at>now() AND u.active=true`;return rows[0]||null}
 
 export default async function handler(req,res){
@@ -30,6 +31,27 @@ export default async function handler(req,res){
       if(moduleName==='Students'&&!['TEACHER','ACCOUNTANT','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Student directory access is restricted'});
       const rows=await sql`SELECT r.id,r.module,r.title,r.subtitle,r.status,r.amount,r.due_date,r.owner_role,a.id attachment_id,a.file_name,a.size_bytes FROM records r LEFT JOIN attachments a ON a.record_id=r.id WHERE r.module=${moduleName} ORDER BY r.created_at DESC`;
       return send(res,200,{records:rows});
+    }
+    if(path==='/attendance'&&req.method==='GET'){
+      if(user.role==='STUDENT'){
+        const rows=await sql`SELECT a.id,a.attendance_date,a.class_name,a.subject,a.status,a.updated_at,t.name teacher_name FROM student_attendance a LEFT JOIN users t ON t.id=a.teacher_id WHERE a.student_id=${user.id} ORDER BY a.attendance_date DESC`;
+        return send(res,200,{attendance:rows,serverDate:schoolDate()});
+      }
+      if(!['TEACHER','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Attendance records are restricted'});
+      const className=String(req.query?.className||''),date=String(req.query?.date||'');
+      const rows=await sql`SELECT a.id,u.login_id admission_id,u.name student_name,a.attendance_date,a.class_name,a.subject,a.status,a.updated_at,t.name teacher_name FROM student_attendance a JOIN users u ON u.id=a.student_id LEFT JOIN users t ON t.id=a.teacher_id WHERE (${className}='' OR a.class_name=${className}) AND (${date}='' OR a.attendance_date=${date||null}::date) ORDER BY u.name`;
+      return send(res,200,{attendance:rows,serverDate:schoolDate()});
+    }
+    if(path==='/attendance'&&req.method==='POST'){
+      if(!['TEACHER','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only teachers can submit attendance'});
+      const d=req.body||{},className=String(d.className||'').trim(),date=String(d.date||''),subject=String(d.subject||'School Day').trim(),entries=Array.isArray(d.entries)?d.entries:[];
+      if(!className||!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(`${date}T00:00:00Z`))||!subject||!entries.length||entries.length>200)return send(res,400,{error:'Class, date, subject and student attendance are required'});
+      const clean=entries.map(entry=>({login_id:String(entry.admissionId||'').trim(),status:String(entry.status||'')}));
+      if(new Set(clean.map(entry=>entry.login_id)).size!==clean.length||clean.some(entry=>!entry.login_id||!['Present','Absent','Late'].includes(entry.status)))return send(res,400,{error:'Every student must have one valid attendance status'});
+      const ids=clean.map(entry=>entry.login_id),matched=await sql`SELECT count(*)::int count FROM users WHERE role='STUDENT' AND active=true AND login_id=ANY(${ids})`;
+      if(Number(matched[0]?.count)!==clean.length)return send(res,400,{error:'One or more student admission numbers are invalid'});
+      const rows=await sql`WITH input AS (SELECT * FROM jsonb_to_recordset(${JSON.stringify(clean)}::jsonb) AS x(login_id text,status text)) INSERT INTO student_attendance(student_id,attendance_date,class_name,subject,status,teacher_id) SELECT u.id,${date}::date,${className},${subject},i.status,${user.id} FROM input i JOIN users u ON u.role='STUDENT' AND u.active=true AND u.login_id=i.login_id ON CONFLICT(student_id,attendance_date) DO UPDATE SET class_name=EXCLUDED.class_name,subject=EXCLUDED.subject,status=EXCLUDED.status,teacher_id=EXCLUDED.teacher_id,updated_at=now() RETURNING id`;
+      return send(res,200,{saved:rows.length,date});
     }
     if(path==='/exam-results'&&req.method==='GET'){
       if(user.role==='STUDENT'){
