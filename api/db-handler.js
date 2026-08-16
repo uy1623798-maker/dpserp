@@ -95,6 +95,32 @@ export default async function handler(req,res){
       const rows=await sql`WITH input AS (SELECT * FROM jsonb_to_recordset(${JSON.stringify(clean)}::jsonb) AS x(login_id text,amount_due numeric,amount_paid numeric)) INSERT INTO student_fees(student_id,class_name,fee_month,amount_due,amount_paid,accountant_id,paid_on) SELECT u.id,${className},(${month}||'-01')::date,i.amount_due,i.amount_paid,${user.id},CASE WHEN i.amount_paid>0 THEN current_date ELSE NULL END FROM input i JOIN users u ON u.role='STUDENT' AND u.active=true AND u.login_id=i.login_id ON CONFLICT(student_id,fee_month) DO UPDATE SET class_name=EXCLUDED.class_name,amount_due=EXCLUDED.amount_due,amount_paid=EXCLUDED.amount_paid,accountant_id=EXCLUDED.accountant_id,paid_on=EXCLUDED.paid_on,updated_at=now() RETURNING id`;
       return send(res,200,{saved:rows.length,month});
     }
+    if(path==='/transfer-certificates'&&req.method==='GET'){
+      if(user.role==='STUDENT'){
+        const rows=await sql`SELECT id,class_name,file_name,size_bytes,created_at,updated_at FROM student_transfer_certificates WHERE student_id=${user.id} ORDER BY updated_at DESC`;
+        return send(res,200,{certificates:rows});
+      }
+      if(!['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Transfer certificates are restricted'});
+      const className=String(req.query?.className||'');
+      const rows=await sql`SELECT c.id,u.login_id admission_id,u.name student_name,c.class_name,c.file_name,c.size_bytes,c.created_at,c.updated_at FROM student_transfer_certificates c JOIN users u ON u.id=c.student_id WHERE (${className}='' OR c.class_name=${className}) ORDER BY u.name`;
+      return send(res,200,{certificates:rows});
+    }
+    if(path==='/transfer-certificates'&&req.method==='POST'){
+      if(!['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only authorised accounts staff can upload transfer certificates'});
+      const d=req.body||{},className=String(d.className||'').trim(),admissionId=String(d.admissionId||'').trim(),file=d.file||{},fileName=String(file.name||'transfer-certificate.pdf').replace(/[^a-zA-Z0-9._ -]/g,'_'),bytes=Buffer.from(String(file.data||''),'base64');
+      if(!className||!admissionId||!file.data)return send(res,400,{error:'Class, student and TC PDF are required'});
+      if(bytes.subarray(0,5).toString()!=='%PDF-'||bytes.length>3*1024*1024)return send(res,400,{error:'Please upload a valid TC PDF of 3 MB or smaller'});
+      const students=await sql`SELECT id FROM users WHERE role='STUDENT' AND active=true AND login_id=${admissionId} LIMIT 1`,student=students[0];
+      if(!student)return send(res,400,{error:'Student admission number is invalid'});
+      const rows=await sql`INSERT INTO student_transfer_certificates(student_id,class_name,file_name,mime_type,size_bytes,content,uploaded_by) VALUES(${student.id},${className},${fileName},'application/pdf',${bytes.length},${bytes},${user.id}) ON CONFLICT(student_id) DO UPDATE SET class_name=EXCLUDED.class_name,file_name=EXCLUDED.file_name,mime_type=EXCLUDED.mime_type,size_bytes=EXCLUDED.size_bytes,content=EXCLUDED.content,uploaded_by=EXCLUDED.uploaded_by,updated_at=now() RETURNING id,file_name,size_bytes,updated_at`;
+      return send(res,200,{certificate:rows[0]});
+    }
+    const certificateFileMatch=path.match(/^\/transfer-certificates\/(\d+)\/file$/);
+    if(certificateFileMatch&&req.method==='GET'){
+      const rows=user.role==='STUDENT'?await sql`SELECT file_name,mime_type,size_bytes,content FROM student_transfer_certificates WHERE id=${Number(certificateFileMatch[1])} AND student_id=${user.id}`:['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role)?await sql`SELECT file_name,mime_type,size_bytes,content FROM student_transfer_certificates WHERE id=${Number(certificateFileMatch[1])}`:[];
+      const file=rows[0];if(!file)return send(res,404,{error:'Transfer certificate not found'});
+      res.status(200).setHeader('Content-Type','application/pdf');res.setHeader('Content-Length',String(file.size_bytes));res.setHeader('Content-Disposition',`attachment; filename="${file.file_name.replace(/"/g,'')}"`);return res.send(Buffer.from(file.content));
+    }
     if(path==='/records'&&req.method==='POST'){
       if(!allowedWriters.includes(user.role))return send(res,403,{error:'Not permitted'});const d=req.body||{},title=String(d.title||'').trim();if(!title)return send(res,400,{error:'Title is required'});
       const rows=await sql`INSERT INTO records(module,title,subtitle,status,amount,due_date,owner_role) VALUES(${String(d.module||'')},${title},${String(d.subtitle||'')},${String(d.status||'Active')},${Number(d.amount||0)},${d.due_date||null},${user.role}) RETURNING *`;
