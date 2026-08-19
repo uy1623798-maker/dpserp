@@ -33,6 +33,7 @@ export default function SchoolLogin(){
         <button disabled={busy} className="btn full">{busy?'Verifying…':`Continue as ${isAdmin?'Administration':selected.name}`}</button>
         <p className="demo">{role==='STUDENT'?'Only the student’s registered Admission Number and Date of Birth can open this portal.':isAdmin?'Enter the Teacher ID assigned to your administration role and registered DOB.':'Enter your assigned Teacher ID and registered DOB.'}</p>
       </form>
+      <a className="fwdcredit mobilefwd" href="https://www.wetakefwd.online" target="_blank" rel="noopener noreferrer" aria-label="Created and designed by WeTakeFwd"><span className="fwdmark" aria-hidden="true"><i/><i/><i/></span><span><b>WE TAKE<br/>FWD</b><small>Created and designed by WeTakeFwd</small><strong>www.wetakefwd.online</strong></span></a>
     </section>
   </main>
 }
