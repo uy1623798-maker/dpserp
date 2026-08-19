@@ -3,13 +3,20 @@ import { neon } from '@neondatabase/serverless';
 
 const allowedWriters=['TEACHER','ACCOUNTANT','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'];
 const administrators=['ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'];
+const moduleReaders={STUDENT:['Profile','Timetable','Homework','Assignments','Notices','Events','Documents'],TEACHER:['My Classes','Students','Timetable','Homework','Assignments','Notices','Leave','Profile'],PARENT:['Child Profile','Attendance','Homework','Timetable','Fees','Notices','Events','Teacher Communication'],ACCOUNTANT:['Students','Payments','Expenses','Receipts','Reports'],ADMIN_STAFF:['Students','Admissions','Staff','Attendance','Documents','Leave','Notices','Events']};
+const moduleWriters={TEACHER:['My Classes','Timetable','Notices','Leave'],ACCOUNTANT:['Payments','Expenses','Receipts','Reports'],ADMIN_STAFF:['Students','Admissions','Staff','Attendance','Documents','Leave','Notices','Events']};
+const canReadModule=(role,moduleName)=>['ADMINISTRATOR','SUPER_ADMIN'].includes(role)||(moduleReaders[role]||[]).includes(moduleName);
+const canWriteModule=(role,moduleName)=>['ADMINISTRATOR','SUPER_ADMIN'].includes(role)||(moduleWriters[role]||[]).includes(moduleName);
 
-function send(res,status,value){res.status(status).setHeader('Content-Type','application/json');res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');res.setHeader('Access-Control-Allow-Methods','GET, POST, DELETE, OPTIONS');return res.send(JSON.stringify(value))}
+function send(res,status,value){res.status(status).setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');res.setHeader('Access-Control-Allow-Methods','GET, POST, DELETE, OPTIONS');return res.send(JSON.stringify(value))}
 function routePath(req){const pathname=new URL(req.url||'/','https://dps.local').pathname;return pathname.replace(/^\/api(?=\/|$)/,'')||'/'}
 function tokenHash(token){return createHash('sha256').update(token).digest('hex')}
 function db(){if(!process.env.DATABASE_URL)throw new Error('Database connection is not configured');return neon(process.env.DATABASE_URL)}
 function schoolDate(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
-async function currentUser(sql,req){const token=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');if(!token)return null;const rows=await sql`SELECT u.id,u.login_id,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=${tokenHash(token)} AND s.expires_at>now() AND u.active=true`;return rows[0]||null}
+function cookieValue(req,name){const item=String(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith(`${name}=`));return item?decodeURIComponent(item.slice(name.length+1)):''}
+function sessionToken(req){return cookieValue(req,'dps_session')||String(req.headers.authorization||'').replace(/^Bearer\s+/i,'')}
+function sessionCookie(token,maxAge=86400){return `dps_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${process.env.VERCEL||process.env.NODE_ENV==='production'?'; Secure':''}`}
+async function currentUser(sql,req){const token=sessionToken(req);if(!token)return null;const rows=await sql`SELECT u.id,u.login_id,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=${tokenHash(token)} AND s.expires_at>now() AND u.active=true`;return rows[0]||null}
 
 export default async function handler(req,res){
   try{
@@ -19,17 +26,25 @@ export default async function handler(req,res){
     if(path==='/auth/login'&&req.method==='POST'){
       const role=String(req.body?.role||'').toUpperCase(),loginId=String(req.body?.loginId||'').trim().toUpperCase(),password=String(req.body?.dateOfBirth||'');
       if(!['STUDENT','TEACHER','ACCOUNTANT','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(role)||!loginId||loginId.length>64||!/^\d{4}-\d{2}-\d{2}$/.test(password))return send(res,401,{error:'Invalid admission number/school ID or date of birth'});
+      const forwarded=String(req.headers['x-forwarded-for']||req.headers['x-real-ip']||'unknown').split(',')[0].trim(),accountKey=tokenHash(`account:${role}:${loginId}`),clientKey=tokenHash(`client:${forwarded}`),attemptKeys=[accountKey,clientKey];
+      await sql`DELETE FROM auth_login_attempts WHERE attempted_at<now()-interval '1 day'`;
+      const attemptCounts=await sql`SELECT attempt_key,count(*)::int count FROM auth_login_attempts WHERE attempt_key=ANY(${attemptKeys}) AND attempted_at>now()-interval '15 minutes' GROUP BY attempt_key`,counts=Object.fromEntries(attemptCounts.map(row=>[row.attempt_key,Number(row.count)]));
+      if((counts[accountKey]||0)>=15||(counts[clientKey]||0)>=30)return send(res,429,{error:'Too many login attempts. Please try again after 15 minutes'});
       const users=await sql`SELECT id,login_id,name,role FROM users WHERE role=${role} AND login_id=${loginId} AND active=true AND password_hash=crypt(${password},password_hash) LIMIT 1`;
-      const user=users[0];if(!user)return send(res,401,{error:'Invalid admission number/school ID or date of birth'});
+      const user=users[0];if(!user){await sql`INSERT INTO auth_login_attempts(attempt_key) SELECT unnest(${attemptKeys}::text[])`;return send(res,401,{error:'Invalid admission number/school ID or date of birth'})}
       const token=randomBytes(32).toString('hex');
+      await sql`DELETE FROM auth_login_attempts WHERE attempt_key=${accountKey}`;
+      await sql`DELETE FROM sessions WHERE expires_at<=now()`;
       await sql`INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(${tokenHash(token)},${user.id},now()+interval '1 day')`;
-      return send(res,200,{token,user:{name:user.name,email:`${role.toLowerCase()}:${user.login_id.toLowerCase()}@dps.demo`,role:user.role,loginId:user.login_id}});
+      res.setHeader('Set-Cookie',sessionCookie(token));
+      return send(res,200,{user:{name:user.name,role:user.role,loginId:user.login_id}});
     }
+    if(path==='/auth/logout'&&req.method==='POST'){const token=sessionToken(req);if(token)await sql`DELETE FROM sessions WHERE token_hash=${tokenHash(token)}`;res.setHeader('Set-Cookie',sessionCookie('',0));return send(res,200,{ok:true})}
     const user=await currentUser(sql,req);if(!user)return send(res,401,{error:'Please sign in again'});
+    if(path==='/auth/me'&&req.method==='GET')return send(res,200,{user:{name:user.name,role:user.role,loginId:user.login_id}});
     if(path==='/records'&&req.method==='GET'){
       const moduleName=String(req.query?.module||'Homework');
-      if(moduleName==='Exams & Results'&&user.role==='STUDENT')return send(res,403,{error:'Use the private student results section'});
-      if(moduleName==='Students'&&!['TEACHER','ACCOUNTANT','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Student directory access is restricted'});
+      if(!moduleName||moduleName.length>80||!canReadModule(user.role,moduleName))return send(res,403,{error:'Module access is restricted'});
       const rows=await sql`SELECT r.id,r.module,r.title,r.subtitle,r.status,r.amount,r.due_date,r.owner_role,a.id attachment_id,a.file_name,a.size_bytes FROM records r LEFT JOIN attachments a ON a.record_id=r.id WHERE r.module=${moduleName} ORDER BY r.created_at DESC`;
       return send(res,200,{records:rows});
     }
@@ -120,11 +135,12 @@ export default async function handler(req,res){
     if(certificateFileMatch&&req.method==='GET'){
       const rows=user.role==='STUDENT'?await sql`SELECT file_name,mime_type,size_bytes,content FROM student_transfer_certificates WHERE id=${Number(certificateFileMatch[1])} AND student_id=${user.id}`:['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role)?await sql`SELECT file_name,mime_type,size_bytes,content FROM student_transfer_certificates WHERE id=${Number(certificateFileMatch[1])}`:[];
       const file=rows[0];if(!file)return send(res,404,{error:'Transfer certificate not found'});
-      res.status(200).setHeader('Content-Type','application/pdf');res.setHeader('Content-Length',String(file.size_bytes));res.setHeader('Content-Disposition',`attachment; filename="${file.file_name.replace(/"/g,'')}"`);return res.send(Buffer.from(file.content));
+      res.status(200).setHeader('Content-Type','application/pdf');res.setHeader('Content-Length',String(file.size_bytes));res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Disposition',`attachment; filename="${file.file_name.replace(/"/g,'')}"`);return res.send(Buffer.from(file.content));
     }
     if(path==='/records'&&req.method==='POST'){
-      if(!allowedWriters.includes(user.role))return send(res,403,{error:'Not permitted'});const d=req.body||{},title=String(d.title||'').trim();if(!title)return send(res,400,{error:'Title is required'});
-      const rows=await sql`INSERT INTO records(module,title,subtitle,status,amount,due_date,owner_role) VALUES(${String(d.module||'')},${title},${String(d.subtitle||'')},${String(d.status||'Active')},${Number(d.amount||0)},${d.due_date||null},${user.role}) RETURNING *`;
+      const d=req.body||{},moduleName=String(d.module||'').trim(),title=String(d.title||'').trim(),subtitle=String(d.subtitle||'').trim(),status=String(d.status||'Active'),amount=Number(d.amount||0);
+      if(!allowedWriters.includes(user.role)||!canWriteModule(user.role,moduleName))return send(res,403,{error:'Not permitted'});if(!title||title.length>160||subtitle.length>1000||!['Active','Pending','Completed','Approved','Published','Submitted'].includes(status)||!Number.isFinite(amount)||amount<0||amount>100000000)return send(res,400,{error:'Invalid record details'});
+      const rows=await sql`INSERT INTO records(module,title,subtitle,status,amount,due_date,owner_role) VALUES(${moduleName},${title},${subtitle},${status},${amount},${d.due_date||null},${user.role}) RETURNING *`;
       return send(res,201,rows[0]);
     }
     const recordMatch=path.match(/^\/records\/(\d+)$/);
@@ -138,9 +154,9 @@ export default async function handler(req,res){
       return send(res,201,{recordId:records[0].id,attachment});
     }
     const fileMatch=path.match(/^\/files\/(\d+)$/);
-    if(fileMatch&&req.method==='GET'){const rows=await sql`SELECT file_name,mime_type,size_bytes,content FROM attachments WHERE id=${Number(fileMatch[1])}`;const file=rows[0];if(!file)return send(res,404,{error:'File not found'});res.status(200).setHeader('Content-Type',file.mime_type);res.setHeader('Content-Disposition',`attachment; filename="${file.file_name.replace(/"/g,'')}"`);return res.send(Buffer.from(file.content))}
+    if(fileMatch&&req.method==='GET'){const rows=await sql`SELECT a.file_name,a.mime_type,a.size_bytes,a.content,r.module FROM attachments a JOIN records r ON r.id=a.record_id WHERE a.id=${Number(fileMatch[1])}`;const file=rows[0];if(!file||!canReadModule(user.role,file.module))return send(res,404,{error:'File not found'});res.status(200).setHeader('Content-Type','application/pdf');res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Disposition',`attachment; filename="${file.file_name.replace(/"/g,'')}"`);return res.send(Buffer.from(file.content))}
     if(path==='/import'&&req.method==='POST'){if(!['ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only administrators can import data'});const d=req.body||{},rows=Array.isArray(d.rows)?d.rows:[];if(!rows.length||rows.length>5000)return send(res,400,{error:'Import requires 1–5000 rows'});for(const row of rows){const title=String(row.title||row.name||'').trim();if(!title)throw new Error('Every row needs a title or name');await sql`INSERT INTO records(module,title,subtitle,status,amount,due_date,owner_role) VALUES(${String(d.module)},${title},${String(row.subtitle||row.details||row.class||'')},${String(row.status||'Active')},${Number(row.amount||0)},${row.due_date||row.date||null},${String(row.owner_role||'ALL')}`};await sql`INSERT INTO import_batches(module,row_count,imported_by) VALUES(${String(d.module)},${rows.length},${user.id})`;return send(res,201,{imported:rows.length,module:d.module})}
-    if(path==='/imports'&&req.method==='GET'){const rows=await sql`SELECT id,module,row_count,created_at FROM import_batches ORDER BY id DESC LIMIT 20`;return send(res,200,{imports:rows})}
+    if(path==='/imports'&&req.method==='GET'){if(!['ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only administrators can view imports'});const rows=await sql`SELECT id,module,row_count,created_at FROM import_batches ORDER BY id DESC LIMIT 20`;return send(res,200,{imports:rows})}
     return send(res,404,{error:'Not found'});
   }catch(error){console.error('[api]',error);return send(res,500,{error:'Server error'})}
 }
