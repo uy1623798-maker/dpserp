@@ -17,7 +17,8 @@ export default async function handler(req,res){
     const path=routePath(req),sql=db();
     if(path==='/health')return send(res,200,{ok:true,runtime:'vercel-serverless',database:'postgresql'});
     if(path==='/auth/login'&&req.method==='POST'){
-      const rawRole=String(req.body?.role||'').toUpperCase(),[role,loginId='']=rawRole.split(':'),password=String(req.body?.password||'');
+      const role=String(req.body?.role||'').toUpperCase(),loginId=String(req.body?.loginId||'').trim().toUpperCase(),password=String(req.body?.dateOfBirth||'');
+      if(!['STUDENT','TEACHER','ACCOUNTANT','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(role)||!loginId||loginId.length>64||!/^\d{4}-\d{2}-\d{2}$/.test(password))return send(res,401,{error:'Invalid admission number/school ID or date of birth'});
       const users=await sql`SELECT id,login_id,name,role FROM users WHERE role=${role} AND login_id=${loginId} AND active=true AND password_hash=crypt(${password},password_hash) LIMIT 1`;
       const user=users[0];if(!user)return send(res,401,{error:'Invalid admission number/school ID or date of birth'});
       const token=randomBytes(32).toString('hex');

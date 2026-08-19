@@ -11,8 +11,8 @@ const roles=[
   {key:'ADMINISTRATOR',name:'Administration',hint:'Staff ID',icon:ShieldCheck},
 ];
 const adminRoles={ADMIN_STAFF:'Administrative Staff',ADMINISTRATOR:'Administrator',SUPER_ADMIN:'Super Administrator'};
-const ids={STUDENT:'DPS202601',TEACHER:'',ACCOUNTANT:'DPSA001',ADMIN_STAFF:'DPSS001',ADMINISTRATOR:'DPSADM001',SUPER_ADMIN:'DPSSA001'};
-const dobs={STUDENT:'2010-04-15',TEACHER:'',ACCOUNTANT:'1988-06-20',ADMIN_STAFF:'1990-02-10',ADMINISTRATOR:'1982-09-05',SUPER_ADMIN:'1980-01-01'};
+const ids={STUDENT:'',TEACHER:'',ACCOUNTANT:'',ADMIN_STAFF:'',ADMINISTRATOR:'',SUPER_ADMIN:''};
+const dobs={STUDENT:'',TEACHER:'',ACCOUNTANT:'',ADMIN_STAFF:'',ADMINISTRATOR:'',SUPER_ADMIN:''};
 
 export default function SchoolLogin(){
   const[role,setRole]=useState('STUDENT'),[loginId,setLoginId]=useState(ids.STUDENT),[dob,setDob]=useState(dobs.STUDENT),[error,setError]=useState(''),[busy,setBusy]=useState(false),nav=useNavigate();
@@ -27,11 +27,11 @@ export default function SchoolLogin(){
       <form className="portalform" onSubmit={submit}>
         <div className="selectedportal"><SelectedIcon/><span><small>Signing in as</small><b>{isAdmin?'Administration':selected.name}</b></span></div>
         {isAdmin&&<label>Administration role<select value={role} onChange={e=>change(e.target.value)}>{Object.entries(adminRoles).map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label>}
-        <label>{role==='STUDENT'?'Username (Admission Number)':role==='TEACHER'?'Username (Teacher ID)':'Username (School Staff ID)'}<input value={loginId} onChange={e=>setLoginId(e.target.value.toUpperCase())} required autoComplete="username"/></label>
-        <label>Password (Date of Birth)<input value={dob} onChange={e=>setDob(e.target.value)} required type="date" autoComplete="bday"/></label>
+        <label>{role==='STUDENT'?'Admission Number':role==='TEACHER'?'Teacher ID':role==='ACCOUNTANT'?'Accountant ID':'Unique Administration Staff ID'}<input value={loginId} onChange={e=>setLoginId(e.target.value.toUpperCase())} required autoComplete="username" placeholder={role==='STUDENT'?'Enter your admission number':role==='TEACHER'?'Enter your teacher ID':role==='ACCOUNTANT'?'Enter your accountant ID':'Enter your assigned staff ID'}/></label>
+        <label>Registered Date of Birth<input value={dob} onChange={e=>setDob(e.target.value)} required type="date" autoComplete="bday"/></label>
         {error&&<p className="formerror" role="alert">{error}</p>}
         <button disabled={busy} className="btn full">{busy?'Verifying…':`Continue as ${isAdmin?'Administration':selected.name}`}</button>
-        <p className="demo">{role==='TEACHER'?'Teacher login: Enter your assigned Teacher ID and registered DOB.':'Student login: Admission Number as username and registered DOB as password.'}</p>
+        <p className="demo">{role==='STUDENT'?'Only the student’s registered Admission Number and Date of Birth can open this portal.':role==='TEACHER'?'Enter your assigned Teacher ID and registered DOB.':role==='ACCOUNTANT'?'Enter your assigned Accountant ID and registered DOB.':'Each administration role requires its own unique Staff ID and registered DOB.'}</p>
       </form>
     </section>
   </main>
