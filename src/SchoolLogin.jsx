@@ -15,8 +15,8 @@ const ids={STUDENT:'',TEACHER:'',ACCOUNTANT:'',ADMIN_STAFF:'',ADMINISTRATOR:'',S
 const dobs={STUDENT:'',TEACHER:'',ACCOUNTANT:'',ADMIN_STAFF:'',ADMINISTRATOR:'',SUPER_ADMIN:''};
 
 export default function SchoolLogin(){
-  const[role,setRole]=useState('STUDENT'),[loginId,setLoginId]=useState(ids.STUDENT),[dob,setDob]=useState(dobs.STUDENT),[error,setError]=useState(''),[busy,setBusy]=useState(false),[showMotivation,setShowMotivation]=useState(true),nav=useNavigate();
-  useEffect(()=>{const timer=setTimeout(()=>setShowMotivation(false),7000);return()=>clearTimeout(timer)},[]);
+  const[role,setRole]=useState('STUDENT'),[loginId,setLoginId]=useState(ids.STUDENT),[dob,setDob]=useState(dobs.STUDENT),[error,setError]=useState(''),[busy,setBusy]=useState(false),[showMotivation,setShowMotivation]=useState(false),nav=useNavigate();
+  useEffect(()=>{const reveal=setTimeout(()=>setShowMotivation(true),3500),hide=setTimeout(()=>setShowMotivation(false),10500);return()=>{clearTimeout(reveal);clearTimeout(hide)}},[]);
   function change(v){setRole(v);setLoginId(ids[v]);setDob(dobs[v]);setError('')}
   async function submit(e){e.preventDefault();setBusy(true);setError('');try{const d=await loginWithSchoolId(role,loginId,dob);sessionStorage.removeItem('dps-token');sessionStorage.setItem('dps-user',JSON.stringify(d.user));nav('/erp')}catch(e){setError(e.message)}finally{setBusy(false)}}
   const selected=roles.find(item=>item.key===role)||roles[3],isAdmin=Object.hasOwn(adminRoles,role),SelectedIcon=selected.icon;
