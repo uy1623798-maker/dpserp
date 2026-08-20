@@ -13,6 +13,21 @@ function routePath(req){const pathname=new URL(req.url||'/','https://dps.local')
 function tokenHash(token){return createHash('sha256').update(token).digest('hex')}
 function db(){if(!process.env.DATABASE_URL)throw new Error('Database connection is not configured');return neon(process.env.DATABASE_URL)}
 function schoolDate(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
+const noticePrefix='[[NOTICE:';
+function classKey(value){
+  const first=String(value||'').split('·')[0].trim().toUpperCase(),early=first.replace(/[^A-Z0-9]/g,'');
+  if(early==='NURSERY'||/^LKG[AB]$/.test(early)||/^UKG[AB]$/.test(early))return early;
+  const match=first.match(/^(?:CLASS\s*)?(I{1,3}|IV|VI{0,3}|IX|X|XI|XII|\d{1,2})(?:ST|ND|RD|TH)?\s*[- ]?\s*([ABC])$/);
+  if(!match)return early;
+  const grades={I:'1',II:'2',III:'3',IV:'4',V:'5',VI:'6',VII:'7',VIII:'8',IX:'9',X:'10',XI:'11',XII:'12'},grade=grades[match[1]]||match[1];
+  return `${grade}${match[2]}`;
+}
+function noticeData(row){
+  const subtitle=String(row.subtitle||'');
+  if(!subtitle.startsWith(noticePrefix))return {...row,audience:'ALL',message:subtitle};
+  const end=subtitle.indexOf(']]'),audience=end>noticePrefix.length?subtitle.slice(noticePrefix.length,end):'ALL';
+  return {...row,audience,message:end>=0?subtitle.slice(end+2):subtitle};
+}
 function cookieValue(req,name){const item=String(req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith(`${name}=`));return item?decodeURIComponent(item.slice(name.length+1)):''}
 function sessionToken(req){return cookieValue(req,'dps_session')||String(req.headers.authorization||'').replace(/^Bearer\s+/i,'')}
 function sessionCookie(token,maxAge=86400){return `dps_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${process.env.VERCEL||process.env.NODE_ENV==='production'?'; Secure':''}`}
@@ -42,6 +57,24 @@ export default async function handler(req,res){
     if(path==='/auth/logout'&&req.method==='POST'){const token=sessionToken(req);if(token)await sql`DELETE FROM sessions WHERE token_hash=${tokenHash(token)}`;res.setHeader('Set-Cookie',sessionCookie('',0));return send(res,200,{ok:true})}
     const user=await currentUser(sql,req);if(!user)return send(res,401,{error:'Please sign in again'});
     if(path==='/auth/me'&&req.method==='GET')return send(res,200,{user:{name:user.name,role:user.role,loginId:user.login_id}});
+    if(path==='/notices'&&req.method==='GET'){
+      if(!canReadModule(user.role,'Notices'))return send(res,403,{error:'Notice access is restricted'});
+      const rows=await sql`SELECT id,module,title,subtitle,status,owner_role,created_at FROM records WHERE module='Notices' ORDER BY created_at DESC`;
+      const notices=rows.map(noticeData);
+      if(user.role!=='STUDENT')return send(res,200,{notices});
+      const profiles=await sql`SELECT subtitle FROM records WHERE module='Students' AND trim(split_part(split_part(subtitle,'Admission ',2),'·',1))=${user.login_id} ORDER BY created_at DESC LIMIT 1`;
+      const studentClass=classKey(profiles[0]?.subtitle);
+      return send(res,200,{notices:notices.filter(notice=>notice.audience==='ALL'||(studentClass&&classKey(notice.audience)===studentClass))});
+    }
+    if(path==='/notices'&&req.method==='POST'){
+      if(!['TEACHER','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only authorised school staff can publish notices'});
+      const title=String(req.body?.title||'').trim(),message=String(req.body?.message||'').trim(),audience=String(req.body?.audience||'').trim();
+      if(!title||title.length>160||!message||message.length>1500||(!audience||audience.length>40))return send(res,400,{error:'Title, notice message and audience are required'});
+      if(audience!=='ALL'&&!/^(Nursery|[LU]KG-[AB]|Class (?:I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)-[ABC])$/.test(audience))return send(res,400,{error:'Please select a valid class'});
+      const subtitle=`${noticePrefix}${audience}]]${message}`;
+      const rows=await sql`INSERT INTO records(module,title,subtitle,status,owner_role) VALUES('Notices',${title},${subtitle},'Published',${user.role}) RETURNING id,module,title,subtitle,status,owner_role,created_at`;
+      return send(res,201,{notice:noticeData(rows[0])});
+    }
     if(path==='/records'&&req.method==='GET'){
       const moduleName=String(req.query?.module||'Homework');
       if(!moduleName||moduleName.length>80||!canReadModule(user.role,moduleName))return send(res,403,{error:'Module access is restricted'});
