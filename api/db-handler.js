@@ -137,6 +137,32 @@ export default async function handler(req,res){
       const file=rows[0];if(!file)return send(res,404,{error:'Transfer certificate not found'});
       res.status(200).setHeader('Content-Type','application/pdf');res.setHeader('Content-Length',String(file.size_bytes));res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Disposition',`attachment; filename="${file.file_name.replace(/"/g,'')}"`);return res.send(Buffer.from(file.content));
     }
+    if(path==='/character-certificates'&&req.method==='GET'){
+      if(user.role==='STUDENT'){
+        const rows=await sql`SELECT id,class_name,file_name,size_bytes,created_at,updated_at FROM student_character_certificates WHERE student_id=${user.id} ORDER BY updated_at DESC`;
+        return send(res,200,{certificates:rows});
+      }
+      if(!['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Character certificates are restricted'});
+      const className=String(req.query?.className||'');
+      const rows=await sql`SELECT c.id,u.login_id admission_id,u.name student_name,c.class_name,c.file_name,c.size_bytes,c.created_at,c.updated_at FROM student_character_certificates c JOIN users u ON u.id=c.student_id WHERE (${className}='' OR c.class_name=${className}) ORDER BY u.name`;
+      return send(res,200,{certificates:rows});
+    }
+    if(path==='/character-certificates'&&req.method==='POST'){
+      if(!['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only authorised accounts staff can upload character certificates'});
+      const d=req.body||{},className=String(d.className||'').trim(),admissionId=String(d.admissionId||'').trim(),file=d.file||{},fileName=String(file.name||'character-certificate.pdf').replace(/[^a-zA-Z0-9._ -]/g,'_'),bytes=Buffer.from(String(file.data||''),'base64');
+      if(!className||!admissionId||!file.data)return send(res,400,{error:'Class, student and Character Certificate PDF are required'});
+      if(bytes.subarray(0,5).toString()!=='%PDF-'||bytes.length>3*1024*1024)return send(res,400,{error:'Please upload a valid Character Certificate PDF of 3 MB or smaller'});
+      const students=await sql`SELECT id FROM users WHERE role='STUDENT' AND active=true AND login_id=${admissionId} LIMIT 1`,student=students[0];
+      if(!student)return send(res,400,{error:'Student admission number is invalid'});
+      const rows=await sql`INSERT INTO student_character_certificates(student_id,class_name,file_name,mime_type,size_bytes,content,uploaded_by) VALUES(${student.id},${className},${fileName},'application/pdf',${bytes.length},${bytes},${user.id}) ON CONFLICT(student_id) DO UPDATE SET class_name=EXCLUDED.class_name,file_name=EXCLUDED.file_name,mime_type=EXCLUDED.mime_type,size_bytes=EXCLUDED.size_bytes,content=EXCLUDED.content,uploaded_by=EXCLUDED.uploaded_by,updated_at=now() RETURNING id,file_name,size_bytes,updated_at`;
+      return send(res,200,{certificate:rows[0]});
+    }
+    const characterCertificateFileMatch=path.match(/^\/character-certificates\/(\d+)\/file$/);
+    if(characterCertificateFileMatch&&req.method==='GET'){
+      const rows=user.role==='STUDENT'?await sql`SELECT file_name,mime_type,size_bytes,content FROM student_character_certificates WHERE id=${Number(characterCertificateFileMatch[1])} AND student_id=${user.id}`:['ACCOUNTANT','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role)?await sql`SELECT file_name,mime_type,size_bytes,content FROM student_character_certificates WHERE id=${Number(characterCertificateFileMatch[1])}`:[];
+      const file=rows[0];if(!file)return send(res,404,{error:'Character certificate not found'});
+      res.status(200).setHeader('Content-Type','application/pdf');res.setHeader('Content-Length',String(file.size_bytes));res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Disposition',`attachment; filename="${file.file_name.replace(/"/g,'')}"`);return res.send(Buffer.from(file.content));
+    }
     if(path==='/records'&&req.method==='POST'){
       const d=req.body||{},moduleName=String(d.module||'').trim(),title=String(d.title||'').trim(),subtitle=String(d.subtitle||'').trim(),status=String(d.status||'Active'),amount=Number(d.amount||0);
       if(!allowedWriters.includes(user.role)||!canWriteModule(user.role,moduleName))return send(res,403,{error:'Not permitted'});if(!title||title.length>160||subtitle.length>1000||!['Active','Pending','Completed','Approved','Published','Submitted'].includes(status)||!Number.isFinite(amount)||amount<0||amount>100000000)return send(res,400,{error:'Invalid record details'});
