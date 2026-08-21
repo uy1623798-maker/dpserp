@@ -1,7 +1,7 @@
 import{useEffect,useState}from'react';
 import{useNavigate}from'react-router-dom';
 import{GraduationCap,Presentation,Calculator,ShieldCheck,X}from'lucide-react';
-import{loginWithSchoolId}from'./services/loginApi';
+import{loginWithSchoolId}from'../../services/loginApi';
 
 const IMG='/dps-logo.jpeg';
 const roles=[

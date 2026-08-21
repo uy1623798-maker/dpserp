@@ -1,1 +1,1 @@
-export { default } from './db-handler.js';
+export { default } from './_lib/db-handler.js';

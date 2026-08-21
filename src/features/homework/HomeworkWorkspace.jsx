@@ -1,7 +1,7 @@
 import{useEffect,useState}from'react';
 import{CheckCircle2,Download,FileText,Send,Upload,X}from'lucide-react';
-import{erpApi}from'./services/api';
-import{SCHOOL_CLASSES}from'./schoolOptions';
+import{erpApi}from'../../services/api';
+import{SCHOOL_CLASSES}from'../../config/schoolOptions';
 
 const toBase64=file=>new Promise((ok,bad)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=bad;r.readAsDataURL(file)});
 
