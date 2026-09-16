@@ -75,6 +75,13 @@ export default async function handler(req,res){
       const rows=await sql`INSERT INTO records(module,title,subtitle,status,owner_role) VALUES('Notices',${title},${subtitle},'Published',${user.role}) RETURNING id,module,title,subtitle,status,owner_role,created_at`;
       return send(res,201,{notice:noticeData(rows[0])});
     }
+    const noticeMatch=path.match(/^\/notices\/(\d+)$/);
+    if(noticeMatch&&req.method==='DELETE'){
+      if(!['TEACHER','ADMIN_STAFF','ADMINISTRATOR','SUPER_ADMIN'].includes(user.role))return send(res,403,{error:'Only authorised school staff can delete notices'});
+      const rows=await sql`DELETE FROM records WHERE id=${Number(noticeMatch[1])} AND module='Notices' RETURNING id`;
+      if(!rows[0])return send(res,404,{error:'Notice not found'});
+      return send(res,200,{ok:true});
+    }
     if(path==='/records'&&req.method==='GET'){
       const moduleName=String(req.query?.module||'Homework');
       if(!moduleName||moduleName.length>80||!canReadModule(user.role,moduleName))return send(res,403,{error:'Module access is restricted'});
@@ -219,3 +226,4 @@ export default async function handler(req,res){
     return send(res,404,{error:'Not found'});
   }catch(error){console.error('[api]',error);return send(res,500,{error:'Server error'})}
 }
+
