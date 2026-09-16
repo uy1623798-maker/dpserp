@@ -5,6 +5,6 @@ export const SCHOOL_CLASSES=[
   'LKG-A','LKG-B',
   'UKG-A','UKG-B',
   ...grades.flatMap(grade=>['A','B'].map(section=>`Class ${grade}-${section}`)),
-  'Class IX-C','Class X-C','Class XI-C',
+  'Class IX-C','Class X-C','Class X-D','Class X-E','Class X-F','Class XI-C',
   'Class IX','Class X','Class XII',
 ];
