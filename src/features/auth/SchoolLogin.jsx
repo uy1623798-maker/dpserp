@@ -1,6 +1,6 @@
 import{useState}from'react';
 import{useNavigate}from'react-router-dom';
-import{GraduationCap,Presentation,Calculator,ShieldCheck}from'lucide-react';
+import{GraduationCap,Presentation,Calculator,ShieldCheck,Sparkles,X}from'lucide-react';
 import{loginWithSchoolId}from'../../services/loginApi';
 
 const IMG='/dps-logo.jpeg';
@@ -15,11 +15,11 @@ const ids={STUDENT:'',TEACHER:'',ACCOUNTANT:'',ADMIN_STAFF:'',ADMINISTRATOR:'',S
 const dobs={STUDENT:'',TEACHER:'',ACCOUNTANT:'',ADMIN_STAFF:'',ADMINISTRATOR:'',SUPER_ADMIN:''};
 
 export default function SchoolLogin(){
-  const[role,setRole]=useState('STUDENT'),[loginId,setLoginId]=useState(ids.STUDENT),[dob,setDob]=useState(dobs.STUDENT),[error,setError]=useState(''),[busy,setBusy]=useState(false),nav=useNavigate();
+  const[role,setRole]=useState('STUDENT'),[loginId,setLoginId]=useState(ids.STUDENT),[dob,setDob]=useState(dobs.STUDENT),[error,setError]=useState(''),[busy,setBusy]=useState(false),[showThought,setShowThought]=useState(true),nav=useNavigate();
   function change(v){setRole(v);setLoginId(ids[v]);setDob(dobs[v]);setError('')}
   async function submit(e){e.preventDefault();setBusy(true);setError('');try{const d=await loginWithSchoolId(role,loginId,dob);sessionStorage.removeItem('dps-token');sessionStorage.setItem('dps-user',JSON.stringify(d.user));nav('/erp')}catch(e){setError(e.message)}finally{setBusy(false)}}
   const selected=roles.find(item=>item.key===role)||roles[3],isAdmin=Object.hasOwn(adminRoles,role),SelectedIcon=selected.icon;
-  return <main className="login rolelogin">
+  return <>{showThought&&<aside className="motivationpop" role="status"><Sparkles aria-hidden="true"/><div><small>Thought for today</small><strong>“Every day is a new chance to learn, grow and shine.”</strong></div><button type="button" onClick={()=>setShowThought(false)} aria-label="Close thought"><X/></button></aside>}<main className="login rolelogin">
     <div className="loginbrand"><a href="/">← Back to website</a><img src={IMG}/><span className="kicker lighttxt">Secure school access</span><h1>Choose your <em>school portal.</em></h1><p>Separate, secure access for every member of the DPS community.</p><a className="fwdcredit" href="https://www.wetakefwd.online" target="_blank" rel="noopener noreferrer" aria-label="Created and designed by WeTakeFwd"><span className="fwdmark" aria-hidden="true"><i/><i/><i/></span><span><b>WE TAKE<br/>FWD</b><small>Created and designed by WeTakeFwd</small><strong>www.wetakefwd.online</strong></span></a></div>
     <section className="loginpanel">
       <div className="portalhead"><img src={IMG}/><div><h2>Welcome back</h2><p>Select your portal to continue</p></div></div>
@@ -35,5 +35,5 @@ export default function SchoolLogin(){
       </form>
       <a className="fwdcredit mobilefwd" href="https://www.wetakefwd.online" target="_blank" rel="noopener noreferrer" aria-label="Created and designed by WeTakeFwd"><span className="fwdmark" aria-hidden="true"><i/><i/><i/></span><span><b>WE TAKE<br/>FWD</b><small>Created and designed by WeTakeFwd</small><strong>www.wetakefwd.online</strong></span></a>
     </section>
-  </main>
+  </main></>
 }
