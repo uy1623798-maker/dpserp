@@ -45,7 +45,11 @@ export default async function handler(req,res){
       await sql`DELETE FROM auth_login_attempts WHERE attempted_at<now()-interval '1 day'`;
       const attemptCounts=await sql`SELECT attempt_key,count(*)::int count FROM auth_login_attempts WHERE attempt_key=ANY(${attemptKeys}) AND attempted_at>now()-interval '15 minutes' GROUP BY attempt_key`,counts=Object.fromEntries(attemptCounts.map(row=>[row.attempt_key,Number(row.count)]));
       if((counts[accountKey]||0)>=15||(counts[clientKey]||0)>=30)return send(res,429,{error:'Too many login attempts. Please try again after 15 minutes'});
-      const users=await sql`SELECT id,login_id,name,role FROM users WHERE role=${role} AND login_id=${loginId} AND active=true AND password_hash=crypt(${password},password_hash) LIMIT 1`;
+      // Older roster imports stored DOBs in the common Excel day-first format.
+      // Keep the date input ISO-only, then verify equivalent legacy forms without
+      // weakening the hashed-password check or exposing which field failed.
+      const [year,month,day]=password.split('-'),dobDayFirst=`${day}-${month}-${year}`,dobSlash=`${day}/${month}/${year}`,dobDotted=`${day}.${month}.${year}`;
+      const users=await sql`SELECT id,login_id,name,role FROM users WHERE role=${role} AND login_id=${loginId} AND active=true AND (password_hash=crypt(${password},password_hash) OR password_hash=crypt(${dobDayFirst},password_hash) OR password_hash=crypt(${dobSlash},password_hash) OR password_hash=crypt(${dobDotted},password_hash)) LIMIT 1`;
       const user=users[0];if(!user){await sql`INSERT INTO auth_login_attempts(attempt_key) SELECT unnest(${attemptKeys}::text[])`;return send(res,401,{error:'Invalid admission number/school ID or date of birth'})}
       const token=randomBytes(32).toString('hex');
       await sql`DELETE FROM auth_login_attempts WHERE attempt_key=${accountKey}`;
