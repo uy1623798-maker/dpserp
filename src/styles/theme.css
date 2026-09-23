@@ -2,7 +2,7 @@
 .theme-toggle svg{width:16px;height:16px;color:#a70917}
 .theme-toggle:hover{background:#fff5ec}
 .login-theme-control{position:fixed;top:18px;right:18px;z-index:150}
-.dobpassword{position:relative;width:100%}.dobpassword>input[name="password"]{width:100%;padding-right:52px}.dobpassword>span{position:absolute;right:16px;top:50%;display:grid;place-items:center;transform:translateY(-50%);pointer-events:none;color:#9d1a28}.dobpassword>span svg{width:20px;height:20px}.dobpassword>.dobpicker{position:absolute;right:0;top:0;width:52px;height:100%;padding:0;opacity:0;cursor:pointer}
+.dobpassword{position:relative;width:100%}.dobpassword>input[name="password"]{width:100%;padding-right:52px}.dobpassword>.dobcalendar{position:absolute;right:5px;top:50%;z-index:2;display:grid;width:42px;height:42px;padding:0;place-items:center;transform:translateY(-50%);border:0;border-radius:10px;background:transparent;color:#9d1a28;cursor:pointer}.dobpassword>.dobcalendar:hover{background:#9d1a2812}.dobpassword>.dobcalendar svg{width:20px;height:20px}.dobpassword>.dobpicker{position:absolute;right:8px;bottom:0;width:1px;height:1px;padding:0;border:0;opacity:0;pointer-events:none}
 
 html[data-theme='dark']{color-scheme:dark;--pale:#171012;--ink:#f9ece2;--muted:#c8b7af;--line:#573d3f}
 html[data-theme='dark'] body{background:#171012;color:var(--ink)}

@@ -1,4 +1,4 @@
-import{useEffect,useState}from'react';
+import{useEffect,useRef,useState}from'react';
 import{useNavigate}from'react-router-dom';
 import{GraduationCap,Presentation,Calculator,ShieldCheck,CalendarDays,X}from'lucide-react';
 import{loginWithSchoolId}from'../../services/loginApi';
@@ -17,6 +17,7 @@ const dobs={STUDENT:'',TEACHER:'',ACCOUNTANT:'',ADMIN_STAFF:'',ADMINISTRATOR:'',
 
 export default function SchoolLogin(){
   const[role,setRole]=useState('STUDENT'),[loginId,setLoginId]=useState(ids.STUDENT),[dob,setDob]=useState(dobs.STUDENT),[error,setError]=useState(''),[busy,setBusy]=useState(false),[showThought,setShowThought]=useState(true),nav=useNavigate();
+  const dobPickerRef=useRef(null);
   useEffect(()=>{const timer=window.setTimeout(()=>setShowThought(false),5000);return()=>window.clearTimeout(timer)},[]);
   function change(v){setRole(v);setLoginId(ids[v]);setDob(dobs[v]);setError('')}
   async function submit(e){e.preventDefault();setBusy(true);setError('');try{const d=await loginWithSchoolId(role,loginId,dob);sessionStorage.removeItem('dps-token');sessionStorage.setItem('dps-user',JSON.stringify(d.user));nav('/erp')}catch(e){setError(e.message)}finally{setBusy(false)}}
@@ -30,7 +31,7 @@ export default function SchoolLogin(){
         <div className="selectedportal"><SelectedIcon/><span><small>Signing in as</small><b>{isAdmin?'Administration':selected.name}</b></span></div>
         {isAdmin&&<label>Administration role<select value={role} onChange={e=>change(e.target.value)}>{Object.entries(adminRoles).map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label>}
         <label>{role==='STUDENT'?'Admission Number':'Teacher ID'}<input name="username" value={loginId} onChange={e=>setLoginId(e.target.value.toUpperCase())} required autoComplete="username" placeholder={role==='STUDENT'?'Enter your admission number':'Enter your assigned teacher ID'}/></label>
-        <label>Registered Date of Birth<div className="dobpassword"><input name="password" value={dob} onChange={e=>setDob(e.target.value)} required type="password" autoComplete="current-password" inputMode="numeric" placeholder="DD-MM-YYYY" aria-label="Date of birth password"/><span aria-hidden="true"><CalendarDays/></span><input className="dobpicker" value={/^\d{4}-\d{2}-\d{2}$/.test(dob)?dob:''} onChange={e=>setDob(e.target.value)} type="date" autoComplete="off" aria-label="Choose date of birth from calendar"/></div></label>
+        <label>Registered Date of Birth<div className="dobpassword"><input name="password" value={dob} onChange={e=>setDob(e.target.value)} required type="password" autoComplete="current-password" inputMode="numeric" placeholder="DD-MM-YYYY" aria-label="Date of birth password"/><button type="button" className="dobcalendar" onClick={()=>{const picker=dobPickerRef.current;if(picker?.showPicker)picker.showPicker();else picker?.click()}} aria-label="Open date of birth calendar"><CalendarDays/></button><input ref={dobPickerRef} className="dobpicker" value={/^\d{4}-\d{2}-\d{2}$/.test(dob)?dob:''} onChange={e=>setDob(e.target.value)} type="date" tabIndex="-1" autoComplete="off" aria-label="Choose date of birth from calendar"/></div></label>
         {error&&<p className="formerror" role="alert">{error}</p>}
         <button disabled={busy} className="btn full">{busy?'Verifying…':`Continue as ${isAdmin?'Administration':selected.name}`}</button>
         <p className="demo">{role==='STUDENT'?'Only the student’s registered Admission Number and Date of Birth can open this portal.':isAdmin?'Enter the Teacher ID assigned to your administration role and registered DOB.':'Enter your assigned Teacher ID and registered DOB.'}</p>
