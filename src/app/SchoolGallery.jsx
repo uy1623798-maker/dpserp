@@ -1,7 +1,7 @@
 import './SchoolGallery.css';
 
 const duplicateShots = new Set([7, 9, 10, 15, 27, 35, 36, 38, 39, 42]);
-const photos = Array.from({length: 53}, (_, index) => index + 1)
+const photos = Array.from({length: 61}, (_, index) => index + 1)
   .filter(number => !duplicateShots.has(number))
   .map(number => ({
     src: `/gallery/school-${String(number).padStart(3, '0')}.jpeg`,
