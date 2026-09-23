@@ -1,0 +1,16 @@
+.home-depth .hero{isolation:isolate;perspective:1200px;background:radial-gradient(ellipse at 80% 25%,#d6323d 0,transparent 48%),linear-gradient(125deg,#38050c,#a30a20 65%,#610817);overflow:hidden}
+.home-depth .hero::before{content:'';position:absolute;inset:-40%;z-index:-1;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 79px,#ffffff0c 80px),repeating-linear-gradient(0deg,transparent 0 79px,#ffffff0c 80px);transform:rotateX(58deg) rotateZ(-20deg);mask-image:linear-gradient(transparent,#000,transparent);animation:depth-grid 28s linear infinite}
+.home-depth .hero-art{transform-style:preserve-3d;perspective:1000px}
+.home-depth .crest{transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(30px)!important;transition:transform .3s ease-out;filter:drop-shadow(0 35px 30px #24020b80)}
+.home-depth .floatcard{backdrop-filter:blur(14px);background:#fff9efed;border:1px solid #ffffff90;box-shadow:0 18px 45px #2b031b40;animation:depth-float 7s ease-in-out infinite}
+.home-depth .fc2{animation-delay:-2s}.home-depth .fc3{animation-delay:-4s}
+.home-depth .orb{animation:depth-glow 12s ease-in-out infinite alternate;pointer-events:none}.home-depth .o2{animation-delay:-6s}
+.home-depth .feature,.home-depth .level,.home-depth .contentcard{transition:box-shadow .25s ease,border-color .25s ease;background-clip:padding-box}
+.home-depth .feature:hover{box-shadow:0 22px 50px #68071918;border-color:#c79b43}
+.home-depth .level:hover{background:linear-gradient(130deg,#ffffff12,#ffffff03);box-shadow:inset 0 1px #ffe9b650}
+.home-depth .btn{transition:box-shadow .25s ease,filter .25s ease}.home-depth .btn:hover{box-shadow:0 12px 28px #28020e35;filter:brightness(1.08)}
+@keyframes depth-float{0%,100%{translate:0 0}50%{translate:0 -12px}}
+@keyframes depth-glow{from{translate:0 0;scale:1}to{translate:24px -20px;scale:1.12}}
+@keyframes depth-grid{from{background-position:0 0}to{background-position:80px 80px}}
+@media(max-width:760px){.home-depth .hero::before{animation:none}.home-depth .floatcard{backdrop-filter:none;animation:none}.home-depth .orb{animation:none}}
+@media(prefers-reduced-motion:reduce){.home-depth *, .home-depth *::before{animation:none!important;transition:none!important}.home-depth .crest{transform:none!important}}
