@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model attachments {
+  id         BigInt   @id @default(autoincrement())
+  record_id  BigInt
+  file_name  String
+  mime_type  String
+  size_bytes Int
+  content    Bytes
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  records    records  @relation(fields: [record_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model auth_login_attempts {
+  id           BigInt   @id @default(autoincrement())
+  attempt_key  String   @db.Char(64)
+  attempted_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([attempted_at], map: "auth_login_attempts_cleanup_idx")
+  @@index([attempt_key, attempted_at(sort: Desc)], map: "auth_login_attempts_key_time_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model exam_results {
+  id                                   BigInt   @id @default(autoincrement())
+  student_id                           BigInt
+  class_name                           String
+  exam_name                            String
+  subject                              String
+  marks                                Decimal  @db.Decimal(7, 2)
+  max_marks                            Decimal  @db.Decimal(7, 2)
+  status                               String
+  result_status                        String   @default("Marked")
+  teacher_id                           BigInt?
+  created_at                           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime @default(now()) @db.Timestamptz(6)
+  users_exam_results_student_idTousers users    @relation("exam_results_student_idTousers", fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_exam_results_teacher_idTousers users?   @relation("exam_results_teacher_idTousers", fields: [teacher_id], references: [id], onUpdate: NoAction)
+
+  @@unique([student_id, class_name, exam_name, subject])
+  @@index([class_name, exam_name, subject], map: "exam_results_class_exam_subject_idx")
+  @@index([student_id, status, created_at(sort: Desc)], map: "exam_results_student_status_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model import_batches {
+  id          BigInt   @id @default(autoincrement())
+  module      String
+  row_count   Int
+  imported_by BigInt?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  users       users?   @relation(fields: [imported_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model records {
+  id          BigInt        @id @default(autoincrement())
+  module      String
+  title       String
+  subtitle    String        @default("")
+  status      String        @default("Active")
+  amount      Decimal       @default(0) @db.Decimal(12, 2)
+  due_date    DateTime?     @db.Date
+  owner_role  String        @default("ALL")
+  created_at  DateTime      @default(now()) @db.Timestamptz(6)
+  attachments attachments[]
+
+  @@index([module, created_at(sort: Desc)], map: "records_module_created_idx")
+}
+
+model sessions {
+  token_hash String   @id
+  user_id    BigInt
+  expires_at DateTime @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expires_at], map: "sessions_expiry_idx")
+  @@index([user_id], map: "sessions_user_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model student_attendance {
+  id                                         BigInt   @id @default(autoincrement())
+  student_id                                 BigInt
+  attendance_date                            DateTime @db.Date
+  class_name                                 String
+  subject                                    String   @default("School Day")
+  status                                     String
+  teacher_id                                 BigInt?
+  created_at                                 DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                                 DateTime @default(now()) @db.Timestamptz(6)
+  users_student_attendance_student_idTousers users    @relation("student_attendance_student_idTousers", fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_student_attendance_teacher_idTousers users?   @relation("student_attendance_teacher_idTousers", fields: [teacher_id], references: [id], onUpdate: NoAction)
+
+  @@unique([student_id, attendance_date], map: "student_attendance_student_date_key")
+  @@index([class_name, attendance_date(sort: Desc)], map: "student_attendance_class_date_idx")
+  @@index([student_id, attendance_date(sort: Desc)], map: "student_attendance_student_date_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model student_character_certificates {
+  id                                                      BigInt   @id @default(autoincrement())
+  student_id                                              BigInt   @unique
+  class_name                                              String
+  file_name                                               String
+  mime_type                                               String
+  size_bytes                                              Int
+  content                                                 Bytes
+  uploaded_by                                             BigInt?
+  created_at                                              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                                              DateTime @default(now()) @db.Timestamptz(6)
+  users_student_character_certificates_student_idTousers  users    @relation("student_character_certificates_student_idTousers", fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_student_character_certificates_uploaded_byTousers users?   @relation("student_character_certificates_uploaded_byTousers", fields: [uploaded_by], references: [id], onUpdate: NoAction)
+
+  @@index([class_name], map: "student_character_certificates_class_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model student_fees {
+  id                                      BigInt    @id @default(autoincrement())
+  student_id                              BigInt
+  class_name                              String
+  fee_month                               DateTime  @db.Date
+  amount_due                              Decimal   @db.Decimal(10, 2)
+  amount_paid                             Decimal   @db.Decimal(10, 2)
+  accountant_id                           BigInt?
+  paid_on                                 DateTime? @db.Date
+  created_at                              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                              DateTime  @default(now()) @db.Timestamptz(6)
+  users_student_fees_accountant_idTousers users?    @relation("student_fees_accountant_idTousers", fields: [accountant_id], references: [id], onUpdate: NoAction)
+  users_student_fees_student_idTousers    users     @relation("student_fees_student_idTousers", fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([student_id, fee_month], map: "student_fees_student_month_key")
+  @@index([class_name, fee_month(sort: Desc)], map: "student_fees_class_month_idx")
+  @@index([student_id, fee_month(sort: Desc)], map: "student_fees_student_month_idx")
+}
+
+model student_transfer_certificates {
+  id                                                     BigInt   @id @default(autoincrement())
+  student_id                                             BigInt   @unique
+  class_name                                             String
+  file_name                                              String
+  mime_type                                              String
+  size_bytes                                             Int
+  content                                                Bytes
+  uploaded_by                                            BigInt?
+  created_at                                             DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                                             DateTime @default(now()) @db.Timestamptz(6)
+  users_student_transfer_certificates_student_idTousers  users    @relation("student_transfer_certificates_student_idTousers", fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_student_transfer_certificates_uploaded_byTousers users?   @relation("student_transfer_certificates_uploaded_byTousers", fields: [uploaded_by], references: [id], onUpdate: NoAction)
+
+  @@index([class_name], map: "student_transfer_certificates_class_idx")
+  @@index([updated_at(sort: Desc)], map: "student_transfer_certificates_updated_idx")
+}
+
+model users {
+  id                                                                               BigInt                           @id @default(autoincrement())
+  login_id                                                                         String
+  role                                                                             String
+  name                                                                             String
+  password_hash                                                                    String
+  active                                                                           Boolean                          @default(true)
+  created_at                                                                       DateTime                         @default(now()) @db.Timestamptz(6)
+  exam_results_exam_results_student_idTousers                                      exam_results[]                   @relation("exam_results_student_idTousers")
+  exam_results_exam_results_teacher_idTousers                                      exam_results[]                   @relation("exam_results_teacher_idTousers")
+  import_batches                                                                   import_batches[]
+  sessions                                                                         sessions[]
+  student_attendance_student_attendance_student_idTousers                          student_attendance[]             @relation("student_attendance_student_idTousers")
+  student_attendance_student_attendance_teacher_idTousers                          student_attendance[]             @relation("student_attendance_teacher_idTousers")
+  student_character_certificates_student_character_certificates_student_idTousers  student_character_certificates?  @relation("student_character_certificates_student_idTousers")
+  student_character_certificates_student_character_certificates_uploaded_byTousers student_character_certificates[] @relation("student_character_certificates_uploaded_byTousers")
+  student_fees_student_fees_accountant_idTousers                                   student_fees[]                   @relation("student_fees_accountant_idTousers")
+  student_fees_student_fees_student_idTousers                                      student_fees[]                   @relation("student_fees_student_idTousers")
+  student_transfer_certificates_student_transfer_certificates_student_idTousers    student_transfer_certificates?   @relation("student_transfer_certificates_student_idTousers")
+  student_transfer_certificates_student_transfer_certificates_uploaded_byTousers   student_transfer_certificates[]  @relation("student_transfer_certificates_uploaded_byTousers")
+
+  @@unique([role, login_id])
+}
