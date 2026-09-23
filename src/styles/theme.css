@@ -1,0 +1,22 @@
+.theme-toggle{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;padding:10px 12px;display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;box-shadow:0 6px 18px #64081112;transition:background .2s,color .2s,border-color .2s}
+.theme-toggle svg{width:16px;height:16px;color:#a70917}
+.theme-toggle:hover{background:#fff5ec}
+
+html[data-theme='dark']{color-scheme:dark;--pale:#171012;--ink:#f9ece2;--muted:#c8b7af;--line:#573d3f}
+html[data-theme='dark'] body{background:#171012;color:var(--ink)}
+html[data-theme='dark'] header,html[data-theme='dark'] .mobilemenu,html[data-theme='dark'] .contentcard,html[data-theme='dark'] .feature,html[data-theme='dark'] .quote,html[data-theme='dark'] .contactform,html[data-theme='dark'] .school-photo-grid a{background:#27191c;color:var(--ink);border-color:var(--line)}
+html[data-theme='dark'] header nav a,html[data-theme='dark'] .contentcard p,html[data-theme='dark'] .feature p,html[data-theme='dark'] .pagebody>p,html[data-theme='dark'] .intro>div:first-child p,html[data-theme='dark'] .event p{color:var(--muted)}
+html[data-theme='dark'] .why,html[data-theme='dark'] .pagebody{background:#171012}
+html[data-theme='dark'] .event{border-color:var(--line)}
+html[data-theme='dark'] .theme-toggle{background:#332125;color:#fff0e7;border-color:#6b4c4f;box-shadow:none}
+html[data-theme='dark'] .theme-toggle:hover{background:#432b30}
+html[data-theme='dark'] .theme-toggle svg{color:#f0c867}
+html[data-theme='dark'] .school-photo-grid a{background:#332125}
+html[data-theme='dark'] .erp{background:#171012}
+html[data-theme='dark'] .erp>main,html[data-theme='dark'] .modulepage{color:var(--ink)}
+html[data-theme='dark'] .erp .stat,html[data-theme='dark'] .erp .chartcard,html[data-theme='dark'] .erp .schedule,html[data-theme='dark'] .erp .tablecard,html[data-theme='dark'] .erp .noticecard,html[data-theme='dark'] .erp .record,html[data-theme='dark'] .erp .attendancehistory,html[data-theme='dark'] .erp .attendancestats article,html[data-theme='dark'] .erp .resultcard,html[data-theme='dark'] .erp .feetable,html[data-theme='dark'] .erp .feestats article,html[data-theme='dark'] .erp .feechart,html[data-theme='dark'] .erp .feehistory,html[data-theme='dark'] .erp .noticecomposer,html[data-theme='dark'] .erp .recordform{background:#27191c;color:var(--ink);border-color:var(--line);box-shadow:none}
+html[data-theme='dark'] .erp .erphead small,html[data-theme='dark'] .erp .erphead p,html[data-theme='dark'] .erp .stat small,html[data-theme='dark'] .erp .cardtitle p,html[data-theme='dark'] .erp .record p,html[data-theme='dark'] .erp .record small,html[data-theme='dark'] .erp .attendancehistory small,html[data-theme='dark'] .erp .noticecard p{color:var(--muted)}
+html[data-theme='dark'] .erp .headicons>button,html[data-theme='dark'] .erp .userbadge,html[data-theme='dark'] .erp .search,html[data-theme='dark'] .erp input,html[data-theme='dark'] .erp select,html[data-theme='dark'] .erp textarea{background:#332125;color:var(--ink);border-color:var(--line)}
+html[data-theme='dark'] .erp .slot,html[data-theme='dark'] .erp .attendancehistory article,html[data-theme='dark'] .erp .feehistory article,html[data-theme='dark'] .erp .feetable>label{border-color:var(--line)}
+html[data-theme='dark'] .erp .theme-toggle{background:#432b30}
+@media(max-width:720px){.theme-toggle{padding:9px}.theme-toggle span{display:none}}
