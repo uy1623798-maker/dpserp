@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 
-const storageKey = 'dps-theme';
-
-function preferredTheme() {
+function preferredTheme(storageKey) {
   const saved = localStorage.getItem(storageKey);
   if (saved === 'light' || saved === 'dark') return saved;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'light';
 }
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ scope = 'public' }) {
   const [theme, setTheme] = useState('light');
+  const storageKey = `dps-theme-${scope}`;
 
   useEffect(() => {
-    setTheme(preferredTheme());
-  }, []);
+    setTheme(preferredTheme(storageKey));
+  }, [storageKey]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -24,7 +23,7 @@ export default function ThemeToggle() {
   const dark = theme === 'dark';
   return <button
     type="button"
-    className="theme-toggle"
+    className={`theme-toggle theme-toggle-${scope}`}
     aria-label={`Switch to ${dark ? 'light' : 'dark'} theme`}
     title={`Switch to ${dark ? 'light' : 'dark'} theme`}
     onClick={() => setTheme(dark ? 'light' : 'dark')}
