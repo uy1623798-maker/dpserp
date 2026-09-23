@@ -1,4 +1,4 @@
-import{useState}from'react';
+import{useEffect,useState}from'react';
 import{useNavigate}from'react-router-dom';
 import{GraduationCap,Presentation,Calculator,ShieldCheck,X}from'lucide-react';
 import{loginWithSchoolId}from'../../services/loginApi';
@@ -16,6 +16,7 @@ const dobs={STUDENT:'',TEACHER:'',ACCOUNTANT:'',ADMIN_STAFF:'',ADMINISTRATOR:'',
 
 export default function SchoolLogin(){
   const[role,setRole]=useState('STUDENT'),[loginId,setLoginId]=useState(ids.STUDENT),[dob,setDob]=useState(dobs.STUDENT),[error,setError]=useState(''),[busy,setBusy]=useState(false),[showThought,setShowThought]=useState(true),nav=useNavigate();
+  useEffect(()=>{const timer=window.setTimeout(()=>setShowThought(false),5000);return()=>window.clearTimeout(timer)},[]);
   function change(v){setRole(v);setLoginId(ids[v]);setDob(dobs[v]);setError('')}
   async function submit(e){e.preventDefault();setBusy(true);setError('');try{const d=await loginWithSchoolId(role,loginId,dob);sessionStorage.removeItem('dps-token');sessionStorage.setItem('dps-user',JSON.stringify(d.user));nav('/erp')}catch(e){setError(e.message)}finally{setBusy(false)}}
   const selected=roles.find(item=>item.key===role)||roles[3],isAdmin=Object.hasOwn(adminRoles,role),SelectedIcon=selected.icon;
